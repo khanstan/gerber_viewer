@@ -3,34 +3,63 @@ namespace Jakt {
 struct Command;
 class GerberParser;
 struct Point;
+namespace Section_Details {
+struct Command;
+struct Coordinate;
+}
+struct Section;
+
 static ErrorOr<String> parse_to_string(const String file_path);
 
-class GerberParser : public RefCounted<GerberParser>, public Weakable<GerberParser> {
+namespace Section_Details {
+struct Command {};
+struct Coordinate {};
+}
+struct Section : public Variant<Section_Details::Command, Section_Details::Coordinate> {
+using Variant<Section_Details::Command, Section_Details::Coordinate>::Variant;
+    using Command = Section_Details::Command;
+    using Coordinate = Section_Details::Coordinate;
+ErrorOr<String> debug_description() const {
+auto builder = TRY(StringBuilder::create());
+switch (this->index()) {case 0 /* Command */: {
+[[maybe_unused]] auto const& that = this->template get<Section::Command>();
+TRY(builder.append("Section::Command"));
+break;}
+case 1 /* Coordinate */: {
+[[maybe_unused]] auto const& that = this->template get<Section::Coordinate>();
+TRY(builder.append("Section::Coordinate"));
+break;}
+}
+return builder.to_string();
+}};
+struct Command {
   public:
-virtual ~GerberParser() = default;
-static void to_string();
-static void match_coordinates(const String section);
-static ErrorOr<void> build(const String parsed_file);
-private:
-explicit GerberParser(){}
-public:
-static ErrorOr<NonnullRefPtr<GerberParser>> create() { auto o = TRY(adopt_nonnull_ref_or_enomem(new (nothrow) GerberParser ())); return o; }
-ErrorOr<String> debug_description() const { auto builder = MUST(StringBuilder::create());TRY(builder.append("GerberParser("));JaktInternal::_pretty_print_level++;
-JaktInternal::_pretty_print_level--;
-TRY(builder.append(")"));return builder.to_string(); }};struct Command {
-  public:
-String id;Command(String a_id) :id(a_id){}
+String type;String id;Command(String a_type, String a_id) :type(a_type), id(a_id){}
 
 ErrorOr<String> debug_description() const { auto builder = MUST(StringBuilder::create());TRY(builder.append("Command("));JaktInternal::_pretty_print_level++;
+TRY(JaktInternal::_output_pretty_indent(builder));TRY(builder.append("type: "));TRY(builder.appendff("\"{}\", ", type));
 TRY(JaktInternal::_output_pretty_indent(builder));TRY(builder.append("id: "));TRY(builder.appendff("\"{}\"", id));
+JaktInternal::_pretty_print_level--;
+TRY(builder.append(")"));return builder.to_string(); }};class GerberParser : public RefCounted<GerberParser>, public Weakable<GerberParser> {
+  public:
+virtual ~GerberParser() = default;
+Array<Point> m_coordinates;static void to_string();
+static ErrorOr<void> match_coordinates(const String section);
+static ErrorOr<void> build(const String parsed_file);
+private:
+explicit GerberParser(Array<Point>&& a_m_coordinates): m_coordinates(move(a_m_coordinates)){}
+public:
+static ErrorOr<NonnullRefPtr<GerberParser>> create(Array<Point> m_coordinates) { auto o = TRY(adopt_nonnull_ref_or_enomem(new (nothrow) GerberParser (move(m_coordinates)))); return o; }
+ErrorOr<String> debug_description() const { auto builder = MUST(StringBuilder::create());TRY(builder.append("GerberParser("));JaktInternal::_pretty_print_level++;
+TRY(JaktInternal::_output_pretty_indent(builder));TRY(builder.append("m_coordinates: "));TRY(builder.appendff("{}", m_coordinates));
 JaktInternal::_pretty_print_level--;
 TRY(builder.append(")"));return builder.to_string(); }};struct Point {
   public:
-i64 x;i64 y;Point(i64 a_x, i64 a_y) :x(a_x), y(a_y){}
+String x;String y;Point(String a_x, String a_y) :x(a_x), y(a_y){}
 
 ErrorOr<String> debug_description() const { auto builder = MUST(StringBuilder::create());TRY(builder.append("Point("));JaktInternal::_pretty_print_level++;
-TRY(JaktInternal::_output_pretty_indent(builder));TRY(builder.append("x: "));TRY(builder.appendff("{}, ", x));
-TRY(JaktInternal::_output_pretty_indent(builder));TRY(builder.append("y: "));TRY(builder.appendff("{}", y));
+TRY(JaktInternal::_output_pretty_indent(builder));TRY(builder.append("x: "));TRY(builder.appendff("\"{}\", ", x));
+TRY(JaktInternal::_output_pretty_indent(builder));TRY(builder.append("y: "));TRY(builder.appendff("\"{}\"", y));
 JaktInternal::_pretty_print_level--;
 TRY(builder.append(")"));return builder.to_string(); }};static ErrorOr<String> parse_to_string(const String file_path) {
 {
@@ -68,19 +97,28 @@ void GerberParser::to_string() {
 }
 }
 
-void GerberParser::match_coordinates(const String section) {
+ErrorOr<void> GerberParser::match_coordinates(const String section) {
 {
-if ((((section).byte_at(static_cast<size_t>(0ULL))) == static_cast<u8>(88))){
-outln(String("This is a coordinate, {}, {}"),((section).byte_at(static_cast<size_t>(0ULL))),section);
+Point output_coordinates = Point(String(""),String(""));
+Command output_command = Command(String(""),String(""));
+if ((((section).byte_at(static_cast<size_t>(0ULL))) == 'X')){
+const String x = ((TRY((((section).split('X')))))[static_cast<i64>(0LL)]);
+const String split_x = ((TRY((((x).split('Y')))))[static_cast<i64>(0LL)]);
+(((output_coordinates).x) = split_x);
+(((output_coordinates).y) = ((TRY((((section).split('Y')))))[static_cast<i64>(1LL)]));
+outln(String("This is a Point, {}"),output_coordinates);
 }
-else if ((((section).byte_at(static_cast<size_t>(0ULL))) == static_cast<u8>(77))){
-outln(String("This is a command, {}, {}"),((section).byte_at(static_cast<size_t>(0ULL))),section);
+else if ((((section).byte_at(static_cast<size_t>(0ULL))) == 'M')){
+(((output_command).type) = String("M"));
+(((output_command).id) = ((TRY((((section).split('M')))))[static_cast<i64>(0LL)]));
+outln(String("This is a command, {}"),output_command);
 }
 else {
 outln(String("This is something else, {}, {}"),((section).byte_at(static_cast<size_t>(0ULL))),section);
 }
 
 }
+return {};
 }
 
 ErrorOr<void> GerberParser::build(const String parsed_file) {
@@ -95,7 +133,7 @@ break;
 }
 String section = (_magic_value.value());
 {
-match_coordinates(section);
+TRY((match_coordinates(section)));
 }
 
 }
@@ -106,11 +144,14 @@ return {};
 return {};
 }
 
-template<>struct Formatter<GerberParser> : Formatter<StringView>{
-ErrorOr<void> format(FormatBuilder& builder, GerberParser const& value)
+template<>struct Formatter<Section> : Formatter<StringView>{
+ErrorOr<void> format(FormatBuilder& builder, Section const& value)
 { bool previous_pretty_print; if (m_alternative_form) { previous_pretty_print = JaktInternal::_pretty_print_enabled; JaktInternal::_pretty_print_enabled = true; }ErrorOr<void> format_error = Formatter<StringView>::format(builder, MUST(value.debug_description()));JaktInternal::_pretty_print_enabled = previous_pretty_print;return format_error; }};
 template<>struct Formatter<Command> : Formatter<StringView>{
 ErrorOr<void> format(FormatBuilder& builder, Command const& value)
+{ bool previous_pretty_print; if (m_alternative_form) { previous_pretty_print = JaktInternal::_pretty_print_enabled; JaktInternal::_pretty_print_enabled = true; }ErrorOr<void> format_error = Formatter<StringView>::format(builder, MUST(value.debug_description()));JaktInternal::_pretty_print_enabled = previous_pretty_print;return format_error; }};
+template<>struct Formatter<GerberParser> : Formatter<StringView>{
+ErrorOr<void> format(FormatBuilder& builder, GerberParser const& value)
 { bool previous_pretty_print; if (m_alternative_form) { previous_pretty_print = JaktInternal::_pretty_print_enabled; JaktInternal::_pretty_print_enabled = true; }ErrorOr<void> format_error = Formatter<StringView>::format(builder, MUST(value.debug_description()));JaktInternal::_pretty_print_enabled = previous_pretty_print;return format_error; }};
 template<>struct Formatter<Point> : Formatter<StringView>{
 ErrorOr<void> format(FormatBuilder& builder, Point const& value)
