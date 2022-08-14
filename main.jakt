@@ -1,0 +1,49 @@
+struct Point {
+    x: i64
+    y: i64
+}
+struct Command {
+    id: String
+}
+
+class GerberParser {
+    // m_commands: [Command] 
+    // m_coordinates: [Point]
+
+    public function build(parsed_file: String) throws -> void {
+        let split_file = parsed_file.split('*')
+        for section in split_file.iterator() {
+            match_coordinates(section)
+        }
+        return
+    }
+
+    public function to_string() {
+        
+    }
+
+    function match_coordinates(section: String) {
+        if section.byte_at(0) == 88 { //"X"
+            println("This is a coordinate, {}, {}" section.byte_at(0), section)
+        } else if section.byte_at(0) == 77 { //"M"
+            println("This is a command, {}, {}" section.byte_at(0), section)
+        } else {
+            println("This is something else, {}, {}" section.byte_at(0), section)
+        }
+    }
+}
+
+function parse_to_string(file_path: String) throws -> String {
+    mut file = File::open_for_reading(file_path)
+    mut builder = StringBuilder::create()
+    for b in file.read_all().iterator() {
+        builder.append(b)
+    }
+    
+    return builder.to_string()
+}
+
+function main(args: [String]) throws {
+    let parsed_file = parse_to_string(file_path: "test_files/mattram-63x63.iso")
+    GerberParser::build(parsed_file)
+}
